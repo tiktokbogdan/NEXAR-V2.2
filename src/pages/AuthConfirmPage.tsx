@@ -20,95 +20,95 @@ const AuthConfirmPage = () => {
       setIsConfirming(true);
       setError(null);
       
-      console.log("Starting email confirmation process");
+      console.log("Începerea procesului de confirmare email");
       console.log("URL:", window.location.href);
       console.log("Hash:", location.hash);
       console.log("Search params:", location.search);
       
-      // First, check for hash parameters (modern Supabase auth)
+      // Verificăm mai întâi parametrii din hash (autentificare modernă Supabase)
       const hashParams = new URLSearchParams(location.hash.substring(1));
       const accessToken = hashParams.get('access_token');
       const refreshToken = hashParams.get('refresh_token');
       const type = hashParams.get('type');
       
-      console.log("Hash params:", { 
-        accessToken: accessToken ? "present" : "missing", 
-        refreshToken: refreshToken ? "present" : "missing", 
+      console.log("Parametri hash:", { 
+        accessToken: accessToken ? "prezent" : "lipsă", 
+        refreshToken: refreshToken ? "prezent" : "lipsă", 
         type 
       });
       
-      // If we have tokens in the URL hash
+      // Dacă avem token-uri în hash-ul URL-ului
       if (accessToken && refreshToken) {
-        console.log("Found tokens in URL hash, setting session...");
+        console.log("Token-uri găsite în hash-ul URL-ului, setăm sesiunea...");
         
-        // Set the session with the tokens
+        // Setăm sesiunea cu token-urile
         const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken
         });
         
         if (error) {
-          console.error('Error setting session:', error);
+          console.error('Eroare la setarea sesiunii:', error);
           setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
           setIsConfirming(false);
           return;
         }
         
-        console.log("Session set successfully:", data.session ? "Session present" : "No session");
+        console.log("Sesiune setată cu succes:", data.session ? "Sesiune prezentă" : "Fără sesiune");
         
-        // If type is signup_email_confirmation or recovery, it's a confirmation
+        // Dacă tipul este signup_email_confirmation sau recovery, este o confirmare
         if (type === 'signup' || type === 'signup_email_confirmation' || type === 'recovery') {
-          console.log("Email confirmed successfully via hash params");
+          console.log("Email confirmat cu succes prin parametrii hash");
           setIsSuccess(true);
           setIsConfirming(false);
           return;
         }
       }
       
-      // If no hash params, check for query parameters (older style or email links)
+      // Dacă nu avem parametri hash, verificăm parametrii din query (stil vechi sau link-uri email)
       const queryParams = new URLSearchParams(location.search);
       const token = queryParams.get('token');
       const queryType = queryParams.get('type');
       
-      console.log("Query params:", { 
-        token: token ? "present" : "missing", 
+      console.log("Parametri query:", { 
+        token: token ? "prezent" : "lipsă", 
         type: queryType 
       });
       
       if (token) {
-        console.log("Found token in query params, verifying...");
+        console.log("Token găsit în parametrii query, verificăm...");
         
-        // Try to verify with the token
+        // Încercăm să verificăm cu token-ul
         if (queryType === 'email_confirm' || queryType === 'signup' || !queryType) {
           try {
-            // Try email confirmation
+            // Încercăm confirmarea email-ului
             const { error } = await supabase.auth.verifyOtp({
               token_hash: token,
               type: 'email_change'
             });
             
             if (error) {
-              console.error('Error confirming email with token_hash:', error);
+              console.error('Eroare la confirmarea email-ului cu token_hash:', error);
               
-              // Try alternative verification method
+              // Încercăm o metodă alternativă de verificare
               const { error: signupError } = await supabase.auth.verifyOtp({
                 token_hash: token,
                 type: 'signup'
               });
               
               if (signupError) {
-                console.error('Error confirming signup with token_hash:', signupError);
+                console.error('Eroare la confirmarea înregistrării cu token_hash:', signupError);
                 setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
                 setIsConfirming(false);
                 return;
               }
             }
             
-            console.log("Email confirmed successfully via token");
+            console.log("Email confirmat cu succes prin token");
             setIsSuccess(true);
             setIsConfirming(false);
           } catch (verifyError) {
-            console.error('Error in verification process:', verifyError);
+            console.error('Eroare în procesul de verificare:', verifyError);
             setError('A apărut o eroare la procesarea token-ului de confirmare.');
             setIsConfirming(false);
           }
@@ -117,14 +117,14 @@ const AuthConfirmPage = () => {
           setIsConfirming(false);
         }
       } else if (!accessToken && !refreshToken && !token) {
-        // No tokens found in URL
-        console.error('No tokens found in URL');
+        // Nu s-au găsit token-uri în URL
+        console.error('Nu s-au găsit token-uri în URL');
         setError('Link invalid sau expirat. Te rugăm să soliciți un nou link de confirmare.');
         setIsConfirming(false);
       }
       
     } catch (err) {
-      console.error('Error in confirmEmail:', err);
+      console.error('Eroare în confirmEmail:', err);
       setError('A apărut o eroare neașteptată. Te rugăm să încerci din nou sau să contactezi suportul.');
       setIsConfirming(false);
     }
