@@ -87,11 +87,11 @@ const EditListingPage = () => {
 
       // Verifică proprietatea doar dacă utilizatorul nu este admin
       if (!isAdminUser) {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('user_id', user?.id)
+          .eq('user_id', currentUser?.id)
           .single();
 
         if (!profile || profile.id !== listingData.seller_id) {
@@ -132,9 +132,13 @@ const EditListingPage = () => {
         availability: listingData.availability || 'pe_stoc'
       });
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error:', err);
-      setNetworkError(err);
+      if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+        setNetworkError(err);
+      } else {
+        setErrors({ general: 'A apărut o eroare la încărcarea anunțului.' });
+      }
     } finally {
       setIsLoading(false);
     }

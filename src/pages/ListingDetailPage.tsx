@@ -24,6 +24,7 @@ import {
 	RefreshCw,
 } from "lucide-react";
 import { listings, supabase } from "../lib/supabase";
+import NetworkErrorHandler from "../components/NetworkErrorHandler";
 
 const ListingDetailPage = () => {
 	const { id } = useParams();
@@ -34,6 +35,7 @@ const ListingDetailPage = () => {
 	const [listing, setListing] = useState<any>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [networkError, setNetworkError] = useState<any>(null);
 
 	// Scroll to top when component mounts
 	useEffect(() => {
@@ -48,6 +50,7 @@ const ListingDetailPage = () => {
 		try {
 			setIsLoading(true);
 			setError(null);
+			setNetworkError(null);
 
 			console.log("🔄 Loading listing details for ID:", listingId);
 
@@ -121,12 +124,17 @@ const ListingDetailPage = () => {
 				posted: formatDate(data.created_at),
 				views: data.views_count || 0,
 				featured: data.featured || false,
+				availability: data.availability || "pe_stoc",
 			};
 
 			setListing(formattedListing);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("💥 Error in loadListing:", err);
-			setError("A apărut o eroare la încărcarea anunțului");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				setError("A apărut o eroare la încărcarea anunțului");
+			}
 		} finally {
 			setIsLoading(false);
 		}
@@ -203,6 +211,27 @@ const ListingDetailPage = () => {
 		if (!listing) return;
 		navigate(`/profil/${listing.seller.id}`);
 	};
+
+	const handleNetworkRetry = () => {
+		setNetworkError(null);
+		if (id) {
+			loadListing(id);
+		}
+	};
+
+	// Network error state
+	if (networkError) {
+		return (
+			<div className="min-h-screen bg-gray-50 py-8">
+				<div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+					<NetworkErrorHandler 
+						error={networkError} 
+						onRetry={handleNetworkRetry} 
+					/>
+				</div>
+			</div>
+		);
+	}
 
 	// Loading state
 	if (isLoading) {
@@ -395,6 +424,12 @@ const ListingDetailPage = () => {
 									<div className="text-3xl sm:text-4xl font-bold text-nexar-accent mb-2">
 										{listing.price}
 									</div>
+									{/* Disponibilitate - doar pentru dealeri */}
+									{listing.seller.type === "dealer" && (
+										<div className="text-sm font-medium text-gray-600">
+											Disponibilitate: {listing.availability === "pe_stoc" ? "Pe stoc" : "La comandă"}
+										</div>
+									)}
 								</div>
 							</div>
 
@@ -404,7 +439,7 @@ const ListingDetailPage = () => {
 									<div className="flex items-center space-x-3">
 										<Building className="h-6 w-6" />
 										<div>
-											<div className="font-bold text-lg">DEALER PREMIUM</div>
+											<div className="font-bold text-lg">DEALER VERIFICAT</div>
 											<button
 												onClick={handleSellerClick}
 												className="text-white underline hover:text-emerald-100 transition-colors text-sm"
@@ -564,7 +599,7 @@ const ListingDetailPage = () => {
 								<div className="mb-4 p-3 bg-emerald-100 text-emerald-800 rounded-lg flex items-center justify-between lg:hidden">
 									<div className="flex items-center space-x-2">
 										<Building className="h-5 w-5" />
-										<span className="font-bold">DEALER PREMIUM</span>
+										<span className="font-bold">DEALER VERIFICAT</span>
 									</div>
 									<div className="w-2 h-2 bg-emerald-600 rounded-full animate-pulse"></div>
 								</div>

@@ -20,6 +20,7 @@ import {
 	XCircle,
 } from "lucide-react";
 import { admin, supabase } from "../lib/supabase";
+import NetworkErrorHandler from "../components/NetworkErrorHandler";
 
 const AdminPage = () => {
 	const [activeTab, setActiveTab] = useState("listings");
@@ -33,6 +34,7 @@ const AdminPage = () => {
 	const [isProcessing, setIsProcessing] = useState<{ [key: string]: boolean }>(
 		{},
 	);
+	const [networkError, setNetworkError] = useState<any>(null);
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -43,6 +45,7 @@ const AdminPage = () => {
 		try {
 			setIsLoading(true);
 			setError(null);
+			setNetworkError(null);
 
 			// Verifică dacă utilizatorul este admin
 			const isAdminUser = await admin.isAdmin();
@@ -62,9 +65,13 @@ const AdminPage = () => {
 			} else if (activeTab === "users") {
 				await loadUsers();
 			}
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error checking admin status:", err);
-			setError("A apărut o eroare la verificarea statusului de administrator.");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				setError("A apărut o eroare la verificarea statusului de administrator.");
+			}
 		} finally {
 			setIsLoading(false);
 		}
@@ -74,6 +81,7 @@ const AdminPage = () => {
 		try {
 			setIsLoading(true);
 			setError(null);
+			setNetworkError(null);
 
 			// Folosim query direct pentru a obține TOATE anunțurile, inclusiv cele în așteptare
 			const { data, error } = await supabase
@@ -99,9 +107,13 @@ const AdminPage = () => {
 
 			console.log("Loaded listings:", data?.length || 0, data);
 			setListings(data || []);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error loading listings:", err);
-			setError("A apărut o eroare la încărcarea anunțurilor.");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				setError("A apărut o eroare la încărcarea anunțurilor.");
+			}
 		} finally {
 			setIsLoading(false);
 		}
@@ -111,6 +123,7 @@ const AdminPage = () => {
 		try {
 			setIsLoading(true);
 			setError(null);
+			setNetworkError(null);
 
 			const { data, error } = await admin.getAllUsers();
 
@@ -121,9 +134,13 @@ const AdminPage = () => {
 			}
 
 			setUsers(data || []);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error loading users:", err);
-			setError("A apărut o eroare la încărcarea utilizatorilor.");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				setError("A apărut o eroare la încărcarea utilizatorilor.");
+			}
 		} finally {
 			setIsLoading(false);
 		}
@@ -170,9 +187,13 @@ const AdminPage = () => {
 			);
 
 			alert(`Statusul anunțului a fost actualizat la "${status}".`);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("⚠️ Eroare în try/catch:", err);
-			alert("A apărut o eroare la actualizarea statusului.");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				alert("A apărut o eroare la actualizarea statusului.");
+			}
 		} finally {
 			setIsProcessing((prev) => ({ ...prev, [listingId]: false }));
 		}
@@ -196,9 +217,13 @@ const AdminPage = () => {
 			setListings((prev) => prev.filter((listing) => listing.id !== listingId));
 
 			alert("Anunțul a fost șters cu succes!");
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error deleting listing:", err);
-			alert("A apărut o eroare la ștergerea anunțului.");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				alert("A apărut o eroare la ștergerea anunțului.");
+			}
 		} finally {
 			setIsProcessing((prev) => ({ ...prev, [listingId]: false }));
 		}
@@ -230,13 +255,17 @@ const AdminPage = () => {
 			alert(
 				`Utilizatorul a fost ${suspended ? "suspendat" : "activat"} cu succes!`,
 			);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error toggling user status:", err);
-			alert(
-				`A apărut o eroare la ${
-					suspended ? "suspendarea" : "activarea"
-				} utilizatorului.`,
-			);
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				alert(
+					`A apărut o eroare la ${
+						suspended ? "suspendarea" : "activarea"
+					} utilizatorului.`,
+				);
+			}
 		} finally {
 			setIsProcessing((prev) => ({ ...prev, [userId]: false }));
 		}
@@ -302,9 +331,13 @@ const AdminPage = () => {
 			alert(
 				"Utilizatorul și toate anunțurile asociate au fost șterse cu succes din baza de date!",
 			);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error deleting user:", err);
-			alert("A apărut o eroare la ștergerea utilizatorului.");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				alert("A apărut o eroare la ștergerea utilizatorului.");
+			}
 		} finally {
 			setIsProcessing((prev) => ({ ...prev, [userId]: false }));
 		}
@@ -322,9 +355,12 @@ const AdminPage = () => {
 		navigate(`/profil/${userId}`);
 	};
 
-	const filteredListings = listings.filter((listing) => {
-		console.log("STATUS:", listing.status); // 👈 AICI am adăugat linia
+	const handleNetworkRetry = () => {
+		setNetworkError(null);
+		checkAdminAndLoadData();
+	};
 
+	const filteredListings = listings.filter((listing) => {
 		const matchesSearch =
 			!searchQuery ||
 			listing.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -346,6 +382,20 @@ const AdminPage = () => {
 			user.email?.toLowerCase().includes(searchQuery.toLowerCase())
 		);
 	});
+
+	// Network error state
+	if (networkError) {
+		return (
+			<div className="min-h-screen bg-gray-50 py-8">
+				<div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+					<NetworkErrorHandler 
+						error={networkError} 
+						onRetry={handleNetworkRetry} 
+					/>
+				</div>
+			</div>
+		);
+	}
 
 	// Loading state
 	if (isLoading && !listings.length && !users.length) {
@@ -567,7 +617,7 @@ const AdminPage = () => {
 														<div className="ml-2">
 															{listing.profiles?.seller_type === "dealer" ? (
 																<span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-																	Dealer
+																	Dealer Verificat
 																</span>
 															) : (
 																<span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
@@ -853,7 +903,7 @@ const AdminPage = () => {
 														<div className="flex items-center">
 															<Building className="h-4 w-4 text-green-600 mr-1" />
 															<span className="text-sm text-green-800 font-medium">
-																Dealer
+																Dealer Verificat
 															</span>
 														</div>
 													) : (

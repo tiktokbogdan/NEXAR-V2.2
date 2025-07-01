@@ -31,6 +31,7 @@ import {
 	listings,
 } from "../lib/supabase";
 import FixSupabaseButton from "../components/FixSupabaseButton";
+import NetworkErrorHandler from "../components/NetworkErrorHandler";
 
 const ProfilePage = () => {
 	const { id } = useParams();
@@ -59,16 +60,19 @@ const ProfilePage = () => {
 	const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false);
 	const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 	const [filteredCities, setFilteredCities] = useState<string[]>([]);
+	const [networkError, setNetworkError] = useState<any>(null);
 
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	useEffect(() => {
 		loadProfile();
 	}, [id]);
+	
 	const loadProfile = async () => {
 		try {
 			setIsLoading(true); // 🔁 Începe încărcarea
 			setError(null);
+			setNetworkError(null);
 
 			const {
 				data: { user: currentUser },
@@ -100,9 +104,13 @@ const ProfilePage = () => {
 			setEditedProfile(profileData);
 
 			await loadUserListings(profileData.id);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("💥 Eroare la încărcarea profilului:", err);
-			setError("A apărut o eroare la încărcarea profilului.");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				setError("A apărut o eroare la încărcarea profilului.");
+			}
 		} finally {
 			setIsLoading(false); // ✅ Asta lipsea! Setează false când s-a terminat.
 			console.log("✅ Profilul a fost procesat complet.");
@@ -289,9 +297,13 @@ const ProfilePage = () => {
 			window.scrollTo(0, 0);
 
 			alert("Profilul a fost actualizat cu succes!");
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error saving profile:", err);
-			alert("A apărut o eroare la salvarea profilului");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				alert("A apărut o eroare la salvarea profilului");
+			}
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -358,9 +370,13 @@ const ProfilePage = () => {
 				setPasswordChangeSuccess(false);
 				setIsChangingPassword(false);
 			}, 3000);
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error saving password:", err);
-			alert("A apărut o eroare la salvarea parolei");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				alert("A apărut o eroare la salvarea parolei");
+			}
 		}
 	};
 
@@ -425,15 +441,38 @@ const ProfilePage = () => {
 			);
 
 			alert("Anunțul a fost șters cu succes!");
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error deleting listing:", err);
-			alert("A apărut o eroare la ștergerea anunțului");
+			if (err.message?.includes('NetworkError') || err.message?.includes('fetch')) {
+				setNetworkError(err);
+			} else {
+				alert("A apărut o eroare la ștergerea anunțului");
+			}
 		}
 	};
 
 	const handleViewListing = (listingId: string) => {
 		navigate(`/anunt/${listingId}`);
 	};
+
+	const handleNetworkRetry = () => {
+		setNetworkError(null);
+		loadProfile();
+	};
+
+	// Network error state
+	if (networkError) {
+		return (
+			<div className="min-h-screen bg-gray-50 py-8">
+				<div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+					<NetworkErrorHandler 
+						error={networkError} 
+						onRetry={handleNetworkRetry} 
+					/>
+				</div>
+			</div>
+		);
+	}
 
 	// Loading state
 	if (isLoading) {
@@ -537,7 +576,7 @@ const ProfilePage = () => {
 											<div className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-3 py-1.5 rounded-full shadow-md border border-emerald-400">
 												<Building className="h-3 w-3" />
 												<span className="font-bold text-xs tracking-wide">
-													DEALER PREMIUM
+													DEALER VERIFICAT
 												</span>
 											</div>
 										) : (

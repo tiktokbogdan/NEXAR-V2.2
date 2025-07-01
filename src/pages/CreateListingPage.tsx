@@ -95,9 +95,11 @@ const CreateListingPage = () => {
 					location: "", // Reset location to empty string instead of pre-filling
 				}));
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error checking auth and loading profile:", error);
-			setNetworkError(error);
+			if (error.message?.includes('NetworkError') || error.message?.includes('fetch')) {
+				setNetworkError(error);
+			}
 		} finally {
 			setIsLoadingProfile(false);
 		}

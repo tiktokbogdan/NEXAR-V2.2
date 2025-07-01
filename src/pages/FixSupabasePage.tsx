@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Database, Shield, RefreshCw, CheckCircle, XCircle, AlertTriangle, ArrowRight, Wrench, Code, Cookie } from 'lucide-react';
 import FixSupabaseButton from '../components/FixSupabaseButton';
 import { checkAndFixSupabaseConnection, fixUserProfile, clearBrowserCache, fixCookieIssues } from '../lib/fixSupabase';
+import ConnectionDiagnostics from '../components/ConnectionDiagnostics';
 
 const FixSupabasePage = () => {
   const [isFixingConnection, setIsFixingConnection] = useState(false);
@@ -12,6 +13,7 @@ const FixSupabasePage = () => {
   const [profileResult, setProfileResult] = useState<{success?: boolean; message?: string}>({});
   const [cookieResult, setCookieResult] = useState<{success?: boolean; message?: string}>({});
   const [allFixed, setAllFixed] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const handleFixConnection = async () => {
     setIsFixingConnection(true);
@@ -269,6 +271,32 @@ const FixSupabasePage = () => {
             />
           </div>
 
+          {/* Diagnosticare Avansată */}
+          <div className="bg-purple-50 rounded-xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <Code className="h-6 w-6 text-purple-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Diagnosticare Avansată</h3>
+              </div>
+              <button 
+                onClick={() => setShowDiagnostics(!showDiagnostics)}
+                className="text-purple-600 hover:text-purple-800 font-medium text-sm"
+              >
+                {showDiagnostics ? 'Ascunde' : 'Arată'} Diagnosticul
+              </button>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
+              Rulează diagnostice avansate pentru a identifica exact problema de conectare.
+            </p>
+            
+            {showDiagnostics && (
+              <div className="mt-4 border border-purple-200 rounded-lg p-4">
+                <ConnectionDiagnostics />
+              </div>
+            )}
+          </div>
+
           {/* Succes */}
           {allFixed && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-8 animate-scale-in">
@@ -363,21 +391,21 @@ BEGIN
   CREATE POLICY "profiles_select" ON profiles
     FOR SELECT USING (true);
 
-  CREATE POLICY "profiles_update" ON profiles
+  CREATE POLICY "profiles_update_own" ON profiles
     FOR UPDATE USING (auth.uid() = user_id);
 
-  CREATE POLICY "profiles_insert" ON profiles
+  CREATE POLICY "profiles_insert_own" ON profiles
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
   -- Creează politici SIMPLE pentru LISTINGS (FĂRĂ RECURSIUNE)
-  CREATE POLICY "listings_select" ON listings
+  CREATE POLICY "listings_select_active" ON listings
     FOR SELECT USING (status = 'active');
 
   -- FIXED: More permissive insert policy for authenticated users
   CREATE POLICY "listings_insert" ON listings
     FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
-  CREATE POLICY "listings_update" ON listings
+  CREATE POLICY "listings_update_own" ON listings
     FOR UPDATE USING (
       auth.uid() IS NOT NULL AND 
       seller_id IN (
@@ -387,7 +415,7 @@ BEGIN
       )
     );
 
-  CREATE POLICY "listings_delete" ON listings
+  CREATE POLICY "listings_delete_own" ON listings
     FOR DELETE USING (
       auth.uid() IS NOT NULL AND 
       seller_id IN (
