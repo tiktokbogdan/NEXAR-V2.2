@@ -20,17 +20,26 @@ const AuthConfirmPage = () => {
       setIsConfirming(true);
       setError(null);
       
-      // Get hash parameters from URL
+      console.log("Starting email confirmation process");
+      console.log("URL:", window.location.href);
+      console.log("Hash:", location.hash);
+      console.log("Search params:", location.search);
+      
+      // First, check for hash parameters (modern Supabase auth)
       const hashParams = new URLSearchParams(location.hash.substring(1));
       const accessToken = hashParams.get('access_token');
       const refreshToken = hashParams.get('refresh_token');
       const type = hashParams.get('type');
       
-      console.log('URL hash params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+      console.log("Hash params:", { 
+        accessToken: accessToken ? "present" : "missing", 
+        refreshToken: refreshToken ? "present" : "missing", 
+        type 
+      });
       
-      // Check if we have tokens in the URL hash
+      // If we have tokens in the URL hash
       if (accessToken && refreshToken) {
-        console.log('Found tokens in URL, setting session...');
+        console.log("Found tokens in URL hash, setting session...");
         
         // Set the session with the tokens
         const { data, error } = await supabase.auth.setSession({
@@ -45,47 +54,72 @@ const AuthConfirmPage = () => {
           return;
         }
         
-        // If type is signup_email_confirmation, it's a confirmation
+        console.log("Session set successfully:", data.session ? "Session present" : "No session");
+        
+        // If type is signup_email_confirmation or recovery, it's a confirmation
         if (type === 'signup' || type === 'signup_email_confirmation' || type === 'recovery') {
-          console.log('Email confirmed successfully');
+          console.log("Email confirmed successfully via hash params");
           setIsSuccess(true);
           setIsConfirming(false);
           return;
         }
       }
       
-      // If we don't have tokens in the hash, check for token in query params
+      // If no hash params, check for query parameters (older style or email links)
       const queryParams = new URLSearchParams(location.search);
       const token = queryParams.get('token');
       const queryType = queryParams.get('type');
       
-      console.log('URL query params:', { token: !!token, type: queryType });
+      console.log("Query params:", { 
+        token: token ? "present" : "missing", 
+        type: queryType 
+      });
       
-      if (!token) {
-        setError('Link invalid sau expirat. Te rugăm să soliciți un nou link de confirmare.');
-        setIsConfirming(false);
-        return;
-      }
-      
-      // Try to verify with the token
-      if (queryType === 'email_confirm' || queryType === 'signup') {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: token,
-          type: 'email_change'
-        });
+      if (token) {
+        console.log("Found token in query params, verifying...");
         
-        if (error) {
-          console.error('Error confirming email:', error);
-          setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
+        // Try to verify with the token
+        if (queryType === 'email_confirm' || queryType === 'signup' || !queryType) {
+          try {
+            // Try email confirmation
+            const { error } = await supabase.auth.verifyOtp({
+              token_hash: token,
+              type: 'email_change'
+            });
+            
+            if (error) {
+              console.error('Error confirming email with token_hash:', error);
+              
+              // Try alternative verification method
+              const { error: signupError } = await supabase.auth.verifyOtp({
+                token_hash: token,
+                type: 'signup'
+              });
+              
+              if (signupError) {
+                console.error('Error confirming signup with token_hash:', signupError);
+                setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
+                setIsConfirming(false);
+                return;
+              }
+            }
+            
+            console.log("Email confirmed successfully via token");
+            setIsSuccess(true);
+            setIsConfirming(false);
+          } catch (verifyError) {
+            console.error('Error in verification process:', verifyError);
+            setError('A apărut o eroare la procesarea token-ului de confirmare.');
+            setIsConfirming(false);
+          }
+        } else {
+          setError('Tip de confirmare necunoscut. Te rugăm să contactezi suportul.');
           setIsConfirming(false);
-          return;
         }
-        
-        // Success
-        setIsSuccess(true);
-        setIsConfirming(false);
-      } else {
-        setError('Tip de confirmare necunoscut. Te rugăm să contactezi suportul.');
+      } else if (!accessToken && !refreshToken && !token) {
+        // No tokens found in URL
+        console.error('No tokens found in URL');
+        setError('Link invalid sau expirat. Te rugăm să soliciți un nou link de confirmare.');
         setIsConfirming(false);
       }
       

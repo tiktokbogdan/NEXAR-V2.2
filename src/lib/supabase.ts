@@ -390,7 +390,7 @@ const ensureProfileExists = async (user: any, userData?: any) => {
 
 		console.log("📝 Creating profile with data:", profileData);
 
-		// Dezactivăm temporar RLS pentru a evita eroarea de politică
+		// Încercăm să folosim RPC pentru a ocoli RLS
 		const { data: newProfile, error: createError } = await supabase.rpc(
 			"create_profile_bypass_rls",
 			profileData
