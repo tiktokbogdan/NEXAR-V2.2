@@ -26,6 +26,8 @@ const AuthConfirmPage = () => {
       const refreshToken = hashParams.get('refresh_token');
       const type = hashParams.get('type');
       
+      console.log('URL hash params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, type });
+      
       // Check if we have tokens in the URL hash
       if (accessToken && refreshToken) {
         console.log('Found tokens in URL, setting session...');
@@ -44,7 +46,7 @@ const AuthConfirmPage = () => {
         }
         
         // If type is signup_email_confirmation, it's a confirmation
-        if (type === 'signup' || type === 'signup_email_confirmation') {
+        if (type === 'signup' || type === 'signup_email_confirmation' || type === 'recovery') {
           console.log('Email confirmed successfully');
           setIsSuccess(true);
           setIsConfirming(false);
@@ -57,28 +59,35 @@ const AuthConfirmPage = () => {
       const token = queryParams.get('token');
       const queryType = queryParams.get('type');
       
-      if (!token || queryType !== 'email_confirm') {
+      console.log('URL query params:', { token: !!token, type: queryType });
+      
+      if (!token) {
         setError('Link invalid sau expirat. Te rugăm să soliciți un nou link de confirmare.');
         setIsConfirming(false);
         return;
       }
       
       // Try to verify with the token
-      const { error } = await supabase.auth.verifyOtp({
-        token_hash: token,
-        type: 'email_change'
-      });
-      
-      if (error) {
-        console.error('Error confirming email:', error);
-        setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
+      if (queryType === 'email_confirm' || queryType === 'signup') {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: token,
+          type: 'email_change'
+        });
+        
+        if (error) {
+          console.error('Error confirming email:', error);
+          setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
+          setIsConfirming(false);
+          return;
+        }
+        
+        // Success
+        setIsSuccess(true);
         setIsConfirming(false);
-        return;
+      } else {
+        setError('Tip de confirmare necunoscut. Te rugăm să contactezi suportul.');
+        setIsConfirming(false);
       }
-      
-      // Success
-      setIsSuccess(true);
-      setIsConfirming(false);
       
     } catch (err) {
       console.error('Error in confirmEmail:', err);
