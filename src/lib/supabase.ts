@@ -362,7 +362,7 @@ const ensureProfileExists = async (user: any, userData?: any) => {
 			.from("profiles")
 			.select("*")
 			.eq("user_id", user.id)
-			.single();
+			.maybeSingle(); // Folosim maybeSingle() în loc de single() pentru a evita eroarea când nu există rânduri
 
 		if (existingProfile && !checkError) {
 			console.log("✅ Profile already exists for user:", user.email);
@@ -391,21 +391,36 @@ const ensureProfileExists = async (user: any, userData?: any) => {
 		console.log("📝 Creating profile with data:", profileData);
 
 		// Încercăm să folosim RPC pentru a ocoli RLS
-		const { data: newProfile, error: createError } = await supabase.rpc(
-			"create_profile_bypass_rls",
-			profileData
-		).catch(async (err) => {
-			console.error("❌ RPC method failed, trying direct insert:", err);
+		let newProfile = null;
+		let createError = null;
+
+		try {
+			const rpcResult = await supabase.rpc(
+				"create_profile_bypass_rls",
+				profileData
+			);
+			newProfile = rpcResult.data;
+			createError = rpcResult.error;
+		} catch (rpcError) {
+			console.error("❌ RPC method failed, trying direct insert:", rpcError);
 			// Fallback la inserare directă dacă RPC nu există
-			return await supabase
+			const directResult = await supabase
 				.from("profiles")
 				.insert([profileData])
 				.select()
 				.single();
-		});
+			newProfile = directResult.data;
+			createError = directResult.error;
+		}
 
 		if (createError) {
 			console.error("❌ Error creating profile:", createError);
+			
+			// Verificăm dacă este o eroare de email duplicat
+			if (createError.code === "23505" && createError.message.includes("profiles_email_key")) {
+				throw new Error(`Email-ul ${user.email} este deja folosit de un alt cont. Te rugăm să te conectezi cu acest email sau să contactezi suportul dacă crezi că este o eroare.`);
+			}
+			
 			throw createError;
 		}
 
@@ -441,12 +456,13 @@ export const auth = {
 				console.log("👤 User created, ensuring profile exists...");
 				try {
 					await ensureProfileExists(data.user, userData);
-				} catch (profileError) {
+				} catch (profileError: any) {
 					console.error(
 						"⚠️ Profile creation failed during signup:",
 						profileError,
 					);
-					// Nu returnăm eroare aici pentru că utilizatorul a fost creat cu succes
+					// Returnăm eroarea de profil pentru a fi afișată utilizatorului
+					return { data, error: profileError };
 				}
 			}
 
@@ -1707,21 +1723,36 @@ export const createMissingProfile = async (userId: string, email: string) => {
 		};
 
 		// Încercăm să folosim RPC pentru a ocoli RLS
-		const { data, error } = await supabase.rpc(
-			"create_profile_bypass_rls",
-			profileData
-		).catch(async (err) => {
-			console.error("❌ RPC method failed, trying direct insert:", err);
+		let data = null;
+		let error = null;
+
+		try {
+			const rpcResult = await supabase.rpc(
+				"create_profile_bypass_rls",
+				profileData
+			);
+			data = rpcResult.data;
+			error = rpcResult.error;
+		} catch (rpcError) {
+			console.error("❌ RPC method failed, trying direct insert:", rpcError);
 			// Fallback la inserare directă dacă RPC nu există
-			return await supabase
+			const directResult = await supabase
 				.from("profiles")
 				.insert([profileData])
 				.select()
 				.single();
-		});
+			data = directResult.data;
+			error = directResult.error;
+		}
 
 		if (error) {
 			console.error("❌ Error creating missing profile:", error);
+			
+			// Verificăm dacă este o eroare de email duplicat
+			if (error.code === "23505" && error.message.includes("profiles_email_key")) {
+				throw new Error(`Email-ul ${email} este deja folosit de un alt cont. Te rugăm să te conectezi cu acest email sau să contactezi suportul dacă crezi că este o eroare.`);
+			}
+			
 			throw error;
 		}
 
@@ -1756,7 +1787,7 @@ export const fixCurrentUserProfile = async () => {
 			.from("profiles")
 			.select("*")
 			.eq("user_id", currentUser.id)
-			.single();
+			.maybeSingle(); // Folosim maybeSingle() în loc de single()
 
 		if (existingProfile && !profileError) {
 			console.log("✅ Profile already exists, updating localStorage...");
