@@ -50,7 +50,6 @@ const fixRLSPolicies = async (): Promise<void> => {
     console.log('🔧 Încercare de reparare a politicilor RLS...');
     
     // Acest script va fi rulat doar dacă utilizatorul are permisiuni de admin
-    // Altfel, va eșua silențios
     const { error } = await supabase.rpc('fix_rls_policies');
     
     if (error) {
@@ -238,7 +237,6 @@ const configureStoragePolicies = async (): Promise<void> => {
     console.log('🔧 Configurare politici storage...');
     
     // Acest script va fi rulat doar dacă utilizatorul are permisiuni de admin
-    // Altfel, va eșua silențios
     const { error } = await supabase.rpc('configure_storage_policies');
     
     if (error) {

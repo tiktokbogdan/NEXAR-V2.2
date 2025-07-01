@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-// If you still get "Cannot find module 'lucide-react'" after installing, try this workaround:
 import { X, Plus, Check, AlertTriangle, Camera } from "lucide-react";
-// If the error persists, ensure you have installed lucide-react with:
-// npm install lucide-react
-// and that your node_modules are not excluded by your tsconfig.json or IDE.
 import {
 	listings,
 	isAuthenticated,
@@ -13,6 +9,7 @@ import {
 } from "../lib/supabase";
 import SuccessModal from "../components/SuccessModal";
 import FixSupabaseButton from "../components/FixSupabaseButton";
+import NetworkErrorHandler from "../components/NetworkErrorHandler";
 
 const CreateListingPage = () => {
 	const [currentStep, setCurrentStep] = useState(1);
@@ -24,6 +21,7 @@ const CreateListingPage = () => {
 	const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 	const [showSuccessModal, setShowSuccessModal] = useState(false);
 	const [createdListingId, setCreatedListingId] = useState<string | null>(null);
+	const [networkError, setNetworkError] = useState<any>(null);
 	const navigate = useNavigate();
 
 	const [formData, setFormData] = useState({
@@ -44,6 +42,7 @@ const CreateListingPage = () => {
 		features: [] as string[],
 		phone: "",
 		email: "",
+		availability: "pe_stoc", // Valoare implicită: "pe_stoc" sau "la_comanda"
 	});
 
 	// Check if user is logged in and load profile
@@ -54,6 +53,7 @@ const CreateListingPage = () => {
 	const checkAuthAndLoadProfile = async () => {
 		try {
 			setIsLoadingProfile(true);
+			setNetworkError(null);
 
 			const isLoggedIn = await isAuthenticated();
 			if (!isLoggedIn) {
@@ -97,7 +97,7 @@ const CreateListingPage = () => {
 			}
 		} catch (error) {
 			console.error("Error checking auth and loading profile:", error);
-			navigate("/auth");
+			setNetworkError(error);
 		} finally {
 			setIsLoadingProfile(false);
 		}
@@ -154,6 +154,10 @@ const CreateListingPage = () => {
 		"Foarte bună",
 		"Bună",
 		"Satisfăcătoare",
+	];
+	const availabilityOptions = [
+		{ value: "pe_stoc", label: "Pe stoc" },
+		{ value: "la_comanda", label: "La comandă" },
 	];
 
 	const availableFeatures = [
@@ -404,6 +408,7 @@ const CreateListingPage = () => {
 		if (!validateStep(4)) return;
 
 		setIsSubmitting(true);
+		setNetworkError(null);
 
 		try {
 			if (!userProfile) {
@@ -437,6 +442,7 @@ const CreateListingPage = () => {
 				seller_name: userProfile.name || "Utilizator",
 				seller_type: userProfile.seller_type,
 				status: "pending", // Anunțul va fi în așteptare până la aprobarea de către admin
+				availability: userProfile.seller_type === "dealer" ? formData.availability : null, // Doar pentru dealeri
 			};
 
 			console.log("📝 Mapped listing data:", listingData);
@@ -467,11 +473,15 @@ const CreateListingPage = () => {
 			setShowSuccessModal(true);
 		} catch (error: any) {
 			console.error("💥 Error creating listing:", error);
-			setErrors({
-				submit:
-					error.message ||
-					"A apărut o eroare la publicarea anunțului. Te rog încearcă din nou.",
-			});
+			if (error.message?.includes('NetworkError') || error.message?.includes('fetch')) {
+				setNetworkError(error);
+			} else {
+				setErrors({
+					submit:
+						error.message ||
+						"A apărut o eroare la publicarea anunțului. Te rog încearcă din nou.",
+				});
+			}
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -493,6 +503,11 @@ const CreateListingPage = () => {
 		}
 	};
 
+	const handleNetworkRetry = () => {
+		setNetworkError(null);
+		checkAuthAndLoadProfile();
+	};
+
 	// Loading state
 	if (isLoadingProfile) {
 		return (
@@ -500,6 +515,20 @@ const CreateListingPage = () => {
 				<div className="bg-white p-8 rounded-2xl shadow-lg text-center">
 					<div className="w-16 h-16 border-4 border-nexar-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
 					<p className="text-gray-600">Se încarcă datele profilului...</p>
+				</div>
+			</div>
+		);
+	}
+
+	// Network error state
+	if (networkError) {
+		return (
+			<div className="min-h-screen bg-gray-50 py-8">
+				<div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+					<NetworkErrorHandler 
+						error={networkError} 
+						onRetry={handleNetworkRetry} 
+					/>
 				</div>
 			</div>
 		);
@@ -557,7 +586,7 @@ const CreateListingPage = () => {
 							</div>
 							<div className="text-xs text-gray-600">
 								{userProfile.seller_type === "dealer"
-									? "Dealer Autorizat"
+									? "Dealer Verificat"
 									: "Vânzător Privat"}
 							</div>
 						</div>
@@ -934,6 +963,28 @@ const CreateListingPage = () => {
 										</p>
 									)}
 								</div>
+
+								{/* Disponibilitate - doar pentru dealeri */}
+								{userProfile.seller_type === "dealer" && (
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-2">
+											Disponibilitate *
+										</label>
+										<select
+											value={formData.availability}
+											onChange={(e) =>
+												handleInputChange("availability", e.target.value)
+											}
+											className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+										>
+											{availabilityOptions.map((option) => (
+												<option key={option.value} value={option.value}>
+													{option.label}
+												</option>
+											))}
+										</select>
+									</div>
+								)}
 							</div>
 						</div>
 					)}
@@ -961,7 +1012,6 @@ const CreateListingPage = () => {
 								{images.map((image, index) => (
 									<div key={index} className="relative group">
 										<img
-										loading="lazy"
 											src={image}
 											alt={`Upload ${index + 1}`}
 											className="w-full h-48 object-cover rounded-lg"
@@ -1194,7 +1244,7 @@ const CreateListingPage = () => {
 										</span>
 										<span className="ml-2">
 											{userProfile.seller_type === "dealer"
-												? "Dealer Autorizat"
+												? "Dealer Verificat"
 												: "Vânzător Privat"}
 										</span>
 									</div>
@@ -1204,6 +1254,16 @@ const CreateListingPage = () => {
 										</span>
 										<span className="ml-2">{images.length}/5</span>
 									</div>
+									{userProfile.seller_type === "dealer" && (
+										<div>
+											<span className="text-green-700 font-medium">
+												Disponibilitate:
+											</span>
+											<span className="ml-2">
+												{formData.availability === "pe_stoc" ? "Pe stoc" : "La comandă"}
+											</span>
+										</div>
+									)}
 								</div>
 							</div>
 

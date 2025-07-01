@@ -4,6 +4,7 @@ import { X, Plus, Check, AlertTriangle, Camera, ArrowLeft, ChevronDown, Trash2 }
 import { listings, isAuthenticated, supabase, romanianCities, admin } from '../lib/supabase';
 import SuccessModal from '../components/SuccessModal';
 import FixSupabaseButton from '../components/FixSupabaseButton';
+import NetworkErrorHandler from '../components/NetworkErrorHandler';
 
 const EditListingPage = () => {
   const { id } = useParams();
@@ -19,6 +20,7 @@ const EditListingPage = () => {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [filteredCities, setFilteredCities] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [networkError, setNetworkError] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -38,8 +40,14 @@ const EditListingPage = () => {
     features: [] as string[],
     phone: '',
     email: '',
-    status: ''
+    status: '',
+    availability: 'pe_stoc' // Valoare implicită: "pe_stoc" sau "la_comanda"
   });
+
+  const availabilityOptions = [
+    { value: "pe_stoc", label: "Pe stoc" },
+    { value: "la_comanda", label: "La comandă" },
+  ];
 
   useEffect(() => {
     loadListing();
@@ -48,6 +56,7 @@ const EditListingPage = () => {
   const loadListing = async () => {
     try {
       setIsLoading(true);
+      setNetworkError(null);
       
       // Verificăm dacă utilizatorul este admin
       const isAdminUser = await admin.isAdmin();
@@ -119,12 +128,13 @@ const EditListingPage = () => {
         features: listingData.features || [],
         phone: '',
         email: '',
-        status: listingData.status || 'pending'
+        status: listingData.status || 'pending',
+        availability: listingData.availability || 'pe_stoc'
       });
 
     } catch (err) {
       console.error('Error:', err);
-      navigate('/profil');
+      setNetworkError(err);
     } finally {
       setIsLoading(false);
     }
@@ -395,7 +405,9 @@ const EditListingPage = () => {
         features: formData.features,
         updated_at: new Date().toISOString(),
         // Dacă este admin, păstrăm statusul selectat, altfel setăm la pending
-        status: isAdmin ? formData.status : 'pending'
+        status: isAdmin ? formData.status : 'pending',
+        // Adăugăm disponibilitatea doar pentru dealeri
+        availability: originalListing.seller_type === 'dealer' ? formData.availability : null
       };
       
       // Actualizăm anunțul
@@ -414,16 +426,38 @@ const EditListingPage = () => {
       
     } catch (error: any) {
       console.error('Error updating listing:', error);
-      alert('Eroare la actualizarea anunțului: ' + error.message);
+      if (error.message?.includes('NetworkError') || error.message?.includes('fetch')) {
+        setNetworkError(error);
+      } else {
+        alert('Eroare la actualizarea anunțului: ' + error.message);
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleNetworkRetry = () => {
+    setNetworkError(null);
+    loadListing();
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="w-16 h-16 border-4 border-nexar-accent border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (networkError) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <NetworkErrorHandler 
+            error={networkError} 
+            onRetry={handleNetworkRetry} 
+          />
+        </div>
       </div>
     );
   }
@@ -801,6 +835,26 @@ const EditListingPage = () => {
                   )}
                 </div>
 
+                {/* Disponibilitate - doar pentru dealeri */}
+                {originalListing && originalListing.seller_type === "dealer" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Disponibilitate *
+                    </label>
+                    <select
+                      value={formData.availability}
+                      onChange={(e) => handleInputChange('availability', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-nexar-accent focus:border-transparent"
+                    >
+                      {availabilityOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Status field - only for admin */}
                 {isAdmin && (
                   <div>
@@ -839,7 +893,6 @@ const EditListingPage = () => {
                 {images.map((image, index) => (
                   <div key={index} className="relative group">
                     <img
-                    loading="lazy"
                       src={image}
                       alt={`Upload ${index + 1}`}
                       className="w-full h-48 object-cover rounded-lg"
