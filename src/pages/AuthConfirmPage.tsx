@@ -56,25 +56,46 @@ const AuthConfirmPage = () => {
       if (accessToken && refreshToken) {
         console.log("Token-uri găsite în hash-ul URL-ului, setăm sesiunea...");
         
-        // Setăm sesiunea cu token-urile
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
-        
-        if (error) {
-          console.error('Eroare la setarea sesiunii:', error);
-          setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
-          setIsConfirming(false);
-          return;
-        }
-        
-        console.log("Sesiune setată cu succes:", data.session ? "Sesiune prezentă" : "Fără sesiune");
-        
-        // Dacă tipul este signup_email_confirmation sau recovery, este o confirmare
-        if (type === 'signup' || type === 'signup_email_confirmation' || type === 'recovery') {
-          console.log("Email confirmat cu succes prin parametrii hash");
-          setIsSuccess(true);
+        try {
+          // Setăm sesiunea cu token-urile
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) {
+            console.error('Eroare la setarea sesiunii:', error);
+            
+            // Verificăm dacă eroarea este despre un utilizator care nu există
+            if (error.message?.includes('User from sub claim in JWT does not exist') || 
+                error.code === 'user_not_found') {
+              console.warn('JWT token invalid - utilizatorul nu mai există');
+              
+              // Curățăm sesiunea invalidă
+              await supabase.auth.signOut();
+              
+              setError('Sesiunea este invalidă. Te rugăm să te înregistrezi din nou sau să contactezi suportul.');
+              setIsConfirming(false);
+              return;
+            }
+            
+            setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
+            setIsConfirming(false);
+            return;
+          }
+          
+          console.log("Sesiune setată cu succes:", data.session ? "Sesiune prezentă" : "Fără sesiune");
+          
+          // Dacă tipul este signup_email_confirmation sau recovery, este o confirmare
+          if (type === 'signup' || type === 'signup_email_confirmation' || type === 'recovery') {
+            console.log("Email confirmat cu succes prin parametrii hash");
+            setIsSuccess(true);
+            setIsConfirming(false);
+            return;
+          }
+        } catch (sessionError) {
+          console.error('Eroare la setarea sesiunii:', sessionError);
+          setError('A apărut o eroare la procesarea confirmării. Te rugăm să încerci din nou.');
           setIsConfirming(false);
           return;
         }
@@ -135,12 +156,17 @@ const AuthConfirmPage = () => {
         // Verificăm dacă suntem pe pagina de confirmare fără parametri (poate utilizatorul a accesat direct URL-ul)
         if (location.pathname === '/auth/confirm') {
           // Verificăm dacă utilizatorul este deja autentificat
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            console.log("Utilizatorul este deja autentificat, considerăm confirmarea reușită");
-            setIsSuccess(true);
-            setIsConfirming(false);
-            return;
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              console.log("Utilizatorul este deja autentificat, considerăm confirmarea reușită");
+              setIsSuccess(true);
+              setIsConfirming(false);
+              return;
+            }
+          } catch (sessionError) {
+            console.error('Eroare la verificarea sesiunii:', sessionError);
+            // Continuăm cu fluxul normal
           }
         }
         

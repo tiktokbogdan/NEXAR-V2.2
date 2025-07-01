@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { User, Plus, Menu, X, LogOut } from "lucide-react";
+import { Search, Filter, User, Plus, Menu, X, LogOut } from "lucide-react";
 import {
 	auth,
 	checkSupabaseConnection,
@@ -37,72 +37,101 @@ const Header = () => {
 			}
 
 			// Check current auth state
-			const {
-				data: { user: currentUser },
-			} = await supabase.auth.getUser();
+			try {
+				const {
+					data: { user: currentUser },
+					error: userError,
+				} = await supabase.auth.getUser();
 
-			if (currentUser) {
-				console.log("👤 Found authenticated user:", currentUser.email);
+				// Check if the error is specifically about JWT user not found
+				if (userError) {
+					if (userError.message?.includes("User from sub claim in JWT does not exist") || 
+						userError.code === "user_not_found") {
+						console.warn("🔄 Invalid JWT token detected, clearing session...");
+						
+						// Clear the invalid session
+						await auth.signOut();
+						console.log("✅ Invalid session cleared successfully");
+						setUser(null);
+						localStorage.removeItem("user");
+						setIsLoading(false);
+						return;
+					} else {
+						throw userError;
+					}
+				}
 
-				// Verificăm dacă utilizatorul este admin
-				const isAdminUser = await admin.isAdmin();
-				setIsAdmin(isAdminUser);
+				if (currentUser) {
+					console.log("👤 Found authenticated user:", currentUser.email);
 
-				// Get user profile from database
-				const { data: profileData, error: profileError } = await supabase
-					.from("profiles")
-					.select("*")
-					.eq("user_id", currentUser.id)
-					.single();
+					// Verificăm dacă utilizatorul este admin
+					const isAdminUser = await admin.isAdmin();
+					setIsAdmin(isAdminUser);
 
-				if (!profileError && profileData) {
-					console.log("✅ Profile found:", profileData.name);
+					// Get user profile from database
+					const { data: profileData, error: profileError } = await supabase
+						.from("profiles")
+						.select("*")
+						.eq("user_id", currentUser.id)
+						.maybeSingle();
 
-					const userData = {
-						id: currentUser.id,
-						name: profileData.name,
-						email: profileData.email,
-						sellerType: profileData.seller_type,
-						isAdmin:
-							profileData.is_admin || currentUser.email === "admin@nexar.ro",
-						isLoggedIn: true,
-					};
+					if (!profileError && profileData) {
+						console.log("✅ Profile found:", profileData.name);
 
-					setUser(userData);
-					localStorage.setItem("user", JSON.stringify(userData));
-				} else {
-					console.warn("⚠️ Profile not found for authenticated user");
+						const userData = {
+							id: currentUser.id,
+							name: profileData.name,
+							email: profileData.email,
+							sellerType: profileData.seller_type,
+							isAdmin:
+								profileData.is_admin || currentUser.email === "admin@nexar.ro",
+							isLoggedIn: true,
+						};
 
-					// Creăm automat profilul lipsă
-					try {
-						const { data: newProfile } = await supabase
-							.from("profiles")
-							.insert([
-								{
-									user_id: currentUser.id,
-									name: currentUser.email?.split("@")[0] || "Utilizator",
+						setUser(userData);
+						localStorage.setItem("user", JSON.stringify(userData));
+					} else {
+						console.warn("⚠️ Profile not found for authenticated user");
+
+						// Creăm automat profilul lipsă
+						try {
+							const { data: newProfile } = await supabase
+								.from("profiles")
+								.insert([
+									{
+										user_id: currentUser.id,
+										name: currentUser.email?.split("@")[0] || "Utilizator",
+										email: currentUser.email,
+										seller_type: "individual",
+										is_admin: currentUser.email === "admin@nexar.ro",
+									},
+								])
+								.select()
+								.single();
+
+							if (newProfile) {
+								const userData = {
+									id: currentUser.id,
+									name: newProfile.name,
+									email: newProfile.email,
+									sellerType: newProfile.seller_type,
+									isAdmin:
+										newProfile.is_admin || currentUser.email === "admin@nexar.ro",
+									isLoggedIn: true,
+								};
+
+								setUser(userData);
+								localStorage.setItem("user", JSON.stringify(userData));
+							} else {
+								setUser({
+									id: currentUser.id,
 									email: currentUser.email,
-									seller_type: "individual",
-									is_admin: currentUser.email === "admin@nexar.ro",
-								},
-							])
-							.select()
-							.single();
-
-						if (newProfile) {
-							const userData = {
-								id: currentUser.id,
-								name: newProfile.name,
-								email: newProfile.email,
-								sellerType: newProfile.seller_type,
-								isAdmin:
-									newProfile.is_admin || currentUser.email === "admin@nexar.ro",
-								isLoggedIn: true,
-							};
-
-							setUser(userData);
-							localStorage.setItem("user", JSON.stringify(userData));
-						} else {
+									isAdmin: currentUser.email === "admin@nexar.ro",
+									isLoggedIn: true,
+								});
+							}
+						} catch (profileCreateError) {
+							console.error("❌ Error creating profile:", profileCreateError);
 							setUser({
 								id: currentUser.id,
 								email: currentUser.email,
@@ -110,38 +139,34 @@ const Header = () => {
 								isLoggedIn: true,
 							});
 						}
-					} catch (profileCreateError) {
-						console.error("❌ Error creating profile:", profileCreateError);
-						setUser({
-							id: currentUser.id,
-							email: currentUser.email,
-							isAdmin: currentUser.email === "admin@nexar.ro",
-							isLoggedIn: true,
-						});
+					}
+				} else {
+					console.log("👤 No authenticated user");
+					setUser(null);
+					localStorage.removeItem("user");
+				}
+			} catch (error: any) {
+				console.error("💥 Error checking auth state:", error);
+				
+				// Check if the error is specifically about JWT user not found
+				if (error?.message?.includes("User from sub claim in JWT does not exist") || 
+					error?.code === "user_not_found") {
+					console.warn("🔄 Invalid JWT token detected, clearing session...");
+					
+					try {
+						// Clear the invalid session
+						await auth.signOut();
+						console.log("✅ Invalid session cleared successfully");
+					} catch (signOutError) {
+						console.error("❌ Error clearing invalid session:", signOutError);
 					}
 				}
-			} else {
-				console.log("👤 No authenticated user");
+				
 				setUser(null);
 				localStorage.removeItem("user");
 			}
-		} catch (error: any) {
-			console.error("💥 Error checking auth state:", error);
-			
-			// Check if the error is specifically about JWT user not found
-			if (error?.message?.includes("User from sub claim in JWT does not exist") || 
-				error?.code === "user_not_found") {
-				console.warn("🔄 Invalid JWT token detected, clearing session...");
-				
-				try {
-					// Clear the invalid session
-					await auth.signOut();
-					console.log("✅ Invalid session cleared successfully");
-				} catch (signOutError) {
-					console.error("❌ Error clearing invalid session:", signOutError);
-				}
-			}
-			
+		} catch (error) {
+			console.error("💥 Error in initializeAuth:", error);
 			setUser(null);
 			localStorage.removeItem("user");
 		} finally {
@@ -164,7 +189,7 @@ const Header = () => {
 					.from("profiles")
 					.select("*")
 					.eq("user_id", session.user.id)
-					.single();
+					.maybeSingle();
 
 				if (!profileError && profileData) {
 					const userData = {
@@ -229,13 +254,11 @@ const Header = () => {
 							});
 						}
 					} catch (profileCreateError) {
-						console.error("❌ Error creating profile:", profileCreateError);
-						setUser({
-							id: session.user.id,
-							email: session.user.email,
-							isAdmin: session.user.email === "admin@nexar.ro",
-							isLoggedIn: true,
-						});
+						console.error(
+							"⚠️ Profile creation failed during signup:",
+							profileCreateError,
+						);
+						// Nu returnăm eroare aici pentru că utilizatorul a fost creat cu succes
 					}
 				}
 				setIsLoading(false);
@@ -244,6 +267,15 @@ const Header = () => {
 				setUser(null);
 				setIsAdmin(false);
 				localStorage.removeItem("user");
+				setIsLoading(false);
+			} else if (event === "USER_DELETED" || event === "TOKEN_REFRESHED") {
+				// Refresh the auth state
+				const { data: { user: currentUser } } = await supabase.auth.getUser();
+				if (!currentUser) {
+					setUser(null);
+					setIsAdmin(false);
+					localStorage.removeItem("user");
+				}
 				setIsLoading(false);
 			}
 		});

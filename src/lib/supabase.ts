@@ -578,10 +578,14 @@ export const auth = {
 				// Dacă avem eroare de refresh token, curățăm sesiunea
 				if (
 					error.message.includes("refresh") ||
-					error.message.includes("token")
+					error.message.includes("token") ||
+					error.message.includes("User from sub claim in JWT does not exist") ||
+					error.code === "user_not_found"
 				) {
 					localStorage.removeItem("user");
 					sessionStorage.clear();
+					// Încercăm să deconectăm utilizatorul pentru a curăța sesiunea
+					await supabase.auth.signOut();
 				}
 				return null;
 			}
@@ -1787,7 +1791,7 @@ export const fixCurrentUserProfile = async () => {
 			.from("profiles")
 			.select("*")
 			.eq("user_id", currentUser.id)
-			.maybeSingle(); // Folosim maybeSingle() în loc de single()
+			.maybeSingle();
 
 		if (existingProfile && !profileError) {
 			console.log("✅ Profile already exists, updating localStorage...");

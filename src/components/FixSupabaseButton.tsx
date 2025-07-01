@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { fixAllSupabaseIssues, clearBrowserCache, fixCookieIssues } from '../lib/fixSupabase';
+import { supabase, auth } from '../lib/supabase';
 
 interface FixSupabaseButtonProps {
   onSuccess?: () => void;
@@ -26,6 +27,19 @@ const FixSupabaseButton: React.FC<FixSupabaseButtonProps> = ({
     setResult({});
     
     try {
+      // Verificăm dacă există o sesiune invalidă
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error && (error.message?.includes('User from sub claim in JWT does not exist') || 
+                      error.code === 'user_not_found')) {
+          console.log('🔄 Detected invalid JWT session, clearing...');
+          await auth.signOut();
+        }
+      } catch (sessionError) {
+        console.error('Error checking session:', sessionError);
+      }
+      
       // Curățăm cache-ul și cookie-urile mai întâi
       clearBrowserCache();
       fixCookieIssues();

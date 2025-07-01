@@ -19,7 +19,9 @@ const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({
 
   const isNetworkError = error?.message?.includes('NetworkError') || 
                         error?.message?.includes('fetch') ||
-                        error?.message?.includes('Failed to fetch')
+                        error?.message?.includes('Failed to fetch') ||
+                        error?.message?.includes('User from sub claim in JWT does not exist') ||
+                        error?.code === 'user_not_found'
 
   const runQuickDiagnosis = async () => {
     setIsRunningDiagnosis(true)
@@ -90,31 +92,35 @@ const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({
           Problemă de Conectivitate
         </h3>
         <p className="text-gray-600">
-          Nu ne putem conecta la serverul Supabase. Acest lucru poate fi cauzat de:
+          {error?.message?.includes('User from sub claim in JWT does not exist') || error?.code === 'user_not_found'
+            ? 'Sesiunea ta este invalidă sau a expirat. Acest lucru poate apărea dacă contul a fost șters sau modificat.'
+            : 'Nu ne putem conecta la serverul Supabase. Acest lucru poate fi cauzat de:'}
         </p>
       </div>
 
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-gray-900 mb-3">Cauze posibile:</h4>
-        <ul className="space-y-2 text-sm text-gray-700">
-          <li className="flex items-start space-x-2">
-            <span className="text-red-500">•</span>
-            <span>Proiectul Supabase este în pauză sau inactiv</span>
-          </li>
-          <li className="flex items-start space-x-2">
-            <span className="text-red-500">•</span>
-            <span>Configurare CORS incorectă</span>
-          </li>
-          <li className="flex items-start space-x-2">
-            <span className="text-red-500">•</span>
-            <span>Credențiale API incorecte</span>
-          </li>
-          <li className="flex items-start space-x-2">
-            <span className="text-red-500">•</span>
-            <span>Probleme de rețea sau firewall</span>
-          </li>
-        </ul>
-      </div>
+      {!(error?.message?.includes('User from sub claim in JWT does not exist') || error?.code === 'user_not_found') && (
+        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+          <h4 className="font-semibold text-gray-900 mb-3">Cauze posibile:</h4>
+          <ul className="space-y-2 text-sm text-gray-700">
+            <li className="flex items-start space-x-2">
+              <span className="text-red-500">•</span>
+              <span>Proiectul Supabase este în pauză sau inactiv</span>
+            </li>
+            <li className="flex items-start space-x-2">
+              <span className="text-red-500">•</span>
+              <span>Configurare CORS incorectă</span>
+            </li>
+            <li className="flex items-start space-x-2">
+              <span className="text-red-500">•</span>
+              <span>Credențiale API incorecte</span>
+            </li>
+            <li className="flex items-start space-x-2">
+              <span className="text-red-500">•</span>
+              <span>Probleme de rețea sau firewall</span>
+            </li>
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <button
