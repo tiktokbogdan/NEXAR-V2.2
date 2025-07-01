@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, Home, LogIn, RefreshCw } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, auth } from '../lib/supabase';
 
 const AuthConfirmPage = () => {
   const [isConfirming, setIsConfirming] = useState(true);
@@ -170,19 +170,15 @@ const AuthConfirmPage = () => {
     
     try {
       // Trimitem un nou email de confirmare
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: requestLinkEmail,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm`
-        }
-      });
+      const { success, error } = await auth.resendConfirmationEmail(requestLinkEmail.trim());
       
       if (error) {
         console.error('Eroare la trimiterea unui nou link:', error);
-        setError(`Eroare la trimiterea unui nou link: ${error.message}`);
-      } else {
+        setError(`Eroare la trimiterea unui nou link: ${error.message || 'Eroare necunoscută'}`);
+      } else if (success) {
         setRequestLinkSuccess(true);
+      } else {
+        setError('A apărut o eroare la trimiterea unui nou link de confirmare.');
       }
     } catch (err) {
       console.error('Eroare la solicitarea unui nou link:', err);
