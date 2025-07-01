@@ -207,10 +207,13 @@ CREATE POLICY "admin_delete_listings" ON listings
     auth.email() = 'admin@nexar.ro'
   );
 
--- Pasul 11: Asigură-te că funcția handle_new_user este robustă
+-- Pasul 11: FIXED - Funcția handle_new_user cu bypass RLS
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Temporar dezactivează RLS pentru această operațiune
+  PERFORM set_config('row_level_security.enabled', 'off', TRUE);
+  
   INSERT INTO profiles (
     user_id,
     name,
@@ -228,9 +231,15 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'sellerType', 'individual'),
     NEW.email = 'admin@nexar.ro'
   );
+  
+  -- Reactivează RLS
+  PERFORM set_config('row_level_security.enabled', 'on', TRUE);
+  
   RETURN NEW;
 EXCEPTION
   WHEN OTHERS THEN
+    -- Reactivează RLS în caz de eroare
+    PERFORM set_config('row_level_security.enabled', 'on', TRUE);
     -- Dacă crearea profilului eșuează, permite totuși crearea utilizatorului
     RAISE WARNING 'Failed to create profile for user %: %', NEW.id, SQLERRM;
     RETURN NEW;
@@ -257,6 +266,9 @@ DO $$
 DECLARE
     u RECORD;
 BEGIN
+    -- Temporar dezactivează RLS pentru această operațiune
+    PERFORM set_config('row_level_security.enabled', 'off', TRUE);
+    
     FOR u IN (
         SELECT id, email FROM auth.users
         WHERE id NOT IN (SELECT user_id FROM profiles)
@@ -276,6 +288,14 @@ BEGIN
         );
         RAISE NOTICE 'Created missing profile for user %', u.email;
     END LOOP;
+    
+    -- Reactivează RLS
+    PERFORM set_config('row_level_security.enabled', 'on', TRUE);
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Reactivează RLS în caz de eroare
+        PERFORM set_config('row_level_security.enabled', 'on', TRUE);
+        RAISE WARNING 'Error creating missing profiles: %', SQLERRM;
 END $$;
 
 -- Pasul 15: Test final - verifică că totul funcționează
@@ -358,6 +378,9 @@ DO $$
 DECLARE
     u RECORD;
 BEGIN
+    -- Temporar dezactivează RLS pentru această operațiune
+    PERFORM set_config('row_level_security.enabled', 'off', TRUE);
+    
     FOR u IN (
         SELECT id, email FROM auth.users
         WHERE id NOT IN (SELECT user_id FROM profiles)
@@ -377,6 +400,14 @@ BEGIN
         );
         RAISE NOTICE 'Created missing profile for user %', u.email;
     END LOOP;
+    
+    -- Reactivează RLS
+    PERFORM set_config('row_level_security.enabled', 'on', TRUE);
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Reactivează RLS în caz de eroare
+        PERFORM set_config('row_level_security.enabled', 'on', TRUE);
+        RAISE WARNING 'Error creating missing profiles: %', SQLERRM;
 END $$;
 ```
 
