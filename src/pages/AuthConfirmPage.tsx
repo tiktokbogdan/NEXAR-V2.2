@@ -25,6 +25,18 @@ const AuthConfirmPage = () => {
       console.log("Hash:", location.hash);
       console.log("Search params:", location.search);
       
+      // Verificăm dacă avem un token de eroare în URL (pentru a afișa un mesaj mai prietenos)
+      const urlParams = new URLSearchParams(window.location.search);
+      const errorCode = urlParams.get('error_code');
+      const errorDescription = urlParams.get('error_description');
+      
+      if (errorCode === 'otp_expired' || (errorDescription && errorDescription.includes('expired'))) {
+        console.error('Token-ul de confirmare a expirat');
+        setError('Link-ul de confirmare a expirat. Te rugăm să soliciți un nou link de confirmare din pagina de autentificare.');
+        setIsConfirming(false);
+        return;
+      }
+      
       // Verificăm mai întâi parametrii din hash (autentificare modernă Supabase)
       const hashParams = new URLSearchParams(location.hash.substring(1));
       const accessToken = hashParams.get('access_token');
@@ -117,6 +129,18 @@ const AuthConfirmPage = () => {
           setIsConfirming(false);
         }
       } else if (!accessToken && !refreshToken && !token) {
+        // Verificăm dacă suntem pe pagina de confirmare fără parametri (poate utilizatorul a accesat direct URL-ul)
+        if (location.pathname === '/auth/confirm') {
+          // Verificăm dacă utilizatorul este deja autentificat
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            console.log("Utilizatorul este deja autentificat, considerăm confirmarea reușită");
+            setIsSuccess(true);
+            setIsConfirming(false);
+            return;
+          }
+        }
+        
         // Nu s-au găsit token-uri în URL
         console.error('Nu s-au găsit token-uri în URL');
         setError('Link invalid sau expirat. Te rugăm să soliciți un nou link de confirmare.');
