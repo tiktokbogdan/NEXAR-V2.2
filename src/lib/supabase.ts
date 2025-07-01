@@ -39,6 +39,7 @@ export interface Listing {
 	created_at: string;
 	updated_at: string;
 	status: string;
+	availability?: string; // "pe_stoc" sau "la_comanda" - doar pentru dealeri
 }
 
 export interface User {
@@ -908,7 +909,7 @@ export const listings = {
 			// 1. Obținem anunțul curent pentru a păstra imaginile existente
 			const { data: currentListing, error: fetchError } = await supabase
 				.from("listings")
-				.select("images, seller_id, seller_name, status")
+				.select("images, seller_id, seller_name, status, availability")
 				.eq("id", id)
 				.single();
 
@@ -995,6 +996,8 @@ export const listings = {
 				images: updatedImages,
 				updated_at: new Date().toISOString(),
 				status: updates.status || "pending", // Setăm statusul la pending pentru a aștepta aprobarea modificărilor
+				// Păstrăm disponibilitatea dacă există deja și nu a fost actualizată
+				availability: updates.availability || currentListing.availability
 			};
 
 			console.log("📝 Updating listing with data:", {

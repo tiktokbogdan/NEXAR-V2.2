@@ -20,18 +20,50 @@ const AuthConfirmPage = () => {
       setIsConfirming(true);
       setError(null);
       
-      // Obținem token-ul din URL
-      const params = new URLSearchParams(location.search);
-      const token = params.get('token');
-      const type = params.get('type');
+      // Get hash parameters from URL
+      const hashParams = new URLSearchParams(location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const type = hashParams.get('type');
       
-      if (!token || type !== 'email_confirm') {
+      // Check if we have tokens in the URL hash
+      if (accessToken && refreshToken) {
+        console.log('Found tokens in URL, setting session...');
+        
+        // Set the session with the tokens
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+        
+        if (error) {
+          console.error('Error setting session:', error);
+          setError('A apărut o eroare la confirmarea email-ului. Te rugăm să încerci din nou sau să contactezi suportul.');
+          setIsConfirming(false);
+          return;
+        }
+        
+        // If type is signup_email_confirmation, it's a confirmation
+        if (type === 'signup' || type === 'signup_email_confirmation') {
+          console.log('Email confirmed successfully');
+          setIsSuccess(true);
+          setIsConfirming(false);
+          return;
+        }
+      }
+      
+      // If we don't have tokens in the hash, check for token in query params
+      const queryParams = new URLSearchParams(location.search);
+      const token = queryParams.get('token');
+      const queryType = queryParams.get('type');
+      
+      if (!token || queryType !== 'email_confirm') {
         setError('Link invalid sau expirat. Te rugăm să soliciți un nou link de confirmare.');
         setIsConfirming(false);
         return;
       }
       
-      // Confirmăm email-ul
+      // Try to verify with the token
       const { error } = await supabase.auth.verifyOtp({
         token_hash: token,
         type: 'email_change'
@@ -44,7 +76,7 @@ const AuthConfirmPage = () => {
         return;
       }
       
-      // Succes
+      // Success
       setIsSuccess(true);
       setIsConfirming(false);
       
@@ -94,10 +126,10 @@ const AuthConfirmPage = () => {
                 <CheckCircle className="h-8 w-8 text-green-500" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">
-                Cont confirmat cu succes!
+                Felicitări! Cont confirmat cu succes!
               </h2>
               <p className="text-gray-600 mb-6">
-                Bine ai venit! Contul tău Nexar a fost confirmat cu succes. Te poți bucura acum de toate funcționalitățile platformei. Dacă ai nevoie de asistență sau ai întrebări, echipa noastră de suport îți stă la dispoziție.
+                Bine ai venit în comunitatea Nexar! Contul tău a fost confirmat cu succes. Te poți bucura acum de toate funcționalitățile platformei. Dacă ai nevoie de asistență sau ai întrebări, echipa noastră de suport îți stă la dispoziție.
               </p>
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
                 <Link
