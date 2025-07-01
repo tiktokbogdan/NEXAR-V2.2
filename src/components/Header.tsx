@@ -125,8 +125,23 @@ const Header = () => {
 				setUser(null);
 				localStorage.removeItem("user");
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.error("💥 Error checking auth state:", error);
+			
+			// Check if the error is specifically about JWT user not found
+			if (error?.message?.includes("User from sub claim in JWT does not exist") || 
+				error?.code === "user_not_found") {
+				console.warn("🔄 Invalid JWT token detected, clearing session...");
+				
+				try {
+					// Clear the invalid session
+					await auth.signOut();
+					console.log("✅ Invalid session cleared successfully");
+				} catch (signOutError) {
+					console.error("❌ Error clearing invalid session:", signOutError);
+				}
+			}
+			
 			setUser(null);
 			localStorage.removeItem("user");
 		} finally {
