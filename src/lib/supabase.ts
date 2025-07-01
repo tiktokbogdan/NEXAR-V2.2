@@ -32,6 +32,7 @@ export interface Listing {
 	condition: string;
 	description: string;
 	images: string[];
+	features: string[];
 	seller_id: string;
 	seller_name: string;
 	seller_type: "individual" | "dealer";
@@ -1791,7 +1792,7 @@ export const fixCurrentUserProfile = async () => {
 			.from("profiles")
 			.select("*")
 			.eq("user_id", currentUser.id)
-			.maybeSingle();
+			.single();
 
 		if (existingProfile && !profileError) {
 			console.log("✅ Profile already exists, updating localStorage...");
