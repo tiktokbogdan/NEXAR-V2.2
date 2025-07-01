@@ -644,6 +644,32 @@ export const auth = {
 			return { success: false, error: err };
 		}
 	},
+
+	// Trimite un nou email de confirmare
+	resendConfirmationEmail: async (email: string) => {
+		try {
+			console.log("🔄 Resending confirmation email to:", email);
+
+			const { data, error } = await supabase.auth.resend({
+				type: 'signup',
+				email,
+				options: {
+					emailRedirectTo: `${window.location.origin}/auth/confirm`,
+				},
+			});
+
+			if (error) {
+				console.error("❌ Error resending confirmation email:", error);
+				return { success: false, error };
+			}
+
+			console.log("✅ Confirmation email resent successfully");
+			return { success: true, data };
+		} catch (err) {
+			console.error("💥 Error in resendConfirmationEmail:", err);
+			return { success: false, error: err };
+		}
+	},
 };
 
 // Funcții pentru anunțuri

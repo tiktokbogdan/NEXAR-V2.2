@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { CheckCircle, AlertTriangle, Home, LogIn } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Home, LogIn, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const AuthConfirmPage = () => {
   const [isConfirming, setIsConfirming] = useState(true);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRequestingNewLink, setIsRequestingNewLink] = useState(false);
+  const [requestLinkEmail, setRequestLinkEmail] = useState('');
+  const [requestLinkSuccess, setRequestLinkSuccess] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -154,6 +157,41 @@ const AuthConfirmPage = () => {
     }
   };
 
+  const handleRequestNewLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!requestLinkEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requestLinkEmail)) {
+      setError('Te rugăm să introduci o adresă de email validă.');
+      return;
+    }
+    
+    setIsRequestingNewLink(true);
+    setError(null);
+    
+    try {
+      // Trimitem un nou email de confirmare
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: requestLinkEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm`
+        }
+      });
+      
+      if (error) {
+        console.error('Eroare la trimiterea unui nou link:', error);
+        setError(`Eroare la trimiterea unui nou link: ${error.message}`);
+      } else {
+        setRequestLinkSuccess(true);
+      }
+    } catch (err) {
+      console.error('Eroare la solicitarea unui nou link:', err);
+      setError('A apărut o eroare la trimiterea unui nou link de confirmare.');
+    } finally {
+      setIsRequestingNewLink(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -215,16 +253,16 @@ const AuthConfirmPage = () => {
                 </Link>
               </div>
             </div>
-          ) : (
+          ) : requestLinkSuccess ? (
             <div className="text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle className="h-8 w-8 text-red-500" />
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-8 w-8 text-green-500" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">
-                Eroare la confirmarea contului
+                Link nou trimis cu succes!
               </h2>
               <p className="text-gray-600 mb-6">
-                {error || 'A apărut o eroare la confirmarea contului tău. Te rugăm să încerci din nou sau să contactezi suportul.'}
+                Am trimis un nou link de confirmare la adresa de email introdusă. Te rugăm să verifici căsuța de email (inclusiv folderul de spam) și să urmezi instrucțiunile pentru a-ți confirma contul.
               </p>
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
                 <Link
@@ -232,7 +270,7 @@ const AuthConfirmPage = () => {
                   className="flex-1 bg-nexar-accent text-white py-3 rounded-lg font-semibold hover:bg-nexar-gold transition-colors flex items-center justify-center space-x-2"
                 >
                   <LogIn className="h-5 w-5" />
-                  <span>Încearcă să te conectezi</span>
+                  <span>Înapoi la Autentificare</span>
                 </Link>
                 <Link
                   to="/"
@@ -242,6 +280,76 @@ const AuthConfirmPage = () => {
                   <span>Pagina Principală</span>
                 </Link>
               </div>
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="h-8 w-8 text-red-500" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                {error && error.includes('expirat') 
+                  ? 'Link de confirmare expirat' 
+                  : 'Eroare la confirmarea contului'}
+              </h2>
+              <p className="text-gray-600 mb-6">
+                {error || 'A apărut o eroare la confirmarea contului tău. Te rugăm să încerci din nou sau să contactezi suportul.'}
+              </p>
+              
+              {error && (error.includes('expirat') || error.includes('invalid')) ? (
+                <div className="mb-6 bg-gray-50 p-6 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Solicită un nou link de confirmare</h3>
+                  <form onSubmit={handleRequestNewLink} className="space-y-4">
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                        Adresa de email
+                      </label>
+                      <input
+                        type="email"
+                        id="email"
+                        value={requestLinkEmail}
+                        onChange={(e) => setRequestLinkEmail(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-nexar-accent focus:border-transparent"
+                        placeholder="Introdu adresa de email folosită la înregistrare"
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isRequestingNewLink}
+                      className="w-full bg-nexar-accent text-white py-2 rounded-lg font-semibold hover:bg-nexar-gold transition-colors flex items-center justify-center space-x-2"
+                    >
+                      {isRequestingNewLink ? (
+                        <>
+                          <RefreshCw className="h-5 w-5 animate-spin" />
+                          <span>Se trimite...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-5 w-5" />
+                          <span>Trimite un nou link</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+                  <Link
+                    to="/auth"
+                    className="flex-1 bg-nexar-accent text-white py-3 rounded-lg font-semibold hover:bg-nexar-gold transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <LogIn className="h-5 w-5" />
+                    <span>Încearcă să te conectezi</span>
+                  </Link>
+                  <Link
+                    to="/"
+                    className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Home className="h-5 w-5" />
+                    <span>Pagina Principală</span>
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </div>
